@@ -1,0 +1,37 @@
+version: "3"
+
+services:
+  nginx-1:
+    image: nginx:latest
+    ports:
+      - 81:80
+    volumes:
+      - ./page/A:/usr/share/nginx/html
+
+  nginx-2:
+    image: nginx:latest
+    ports:
+      - 82:80
+    volumes:
+      - ./page/B:/usr/share/nginx/html
+
+  nginx-3:
+    image: nginx:latest
+    ports:
+      - 83:80
+    volumes:
+      - ./page/C:/usr/share/nginx/html
+
+  # nginx-4:
+  #   image: nginx:latest
+  #   ports:
+  #     - 83:80
+  #   volumes:
+  #     - ./page/D:/usr/share/nginx/html
+
+  # nginx-5:
+  #   image: nginx:latest
+  #   ports:
+  #     - 84:80
+  #   volumes:
+  #     - ./page/E:/usr/share/nginx/html
