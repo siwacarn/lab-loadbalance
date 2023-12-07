@@ -1,4 +1,4 @@
-package main
+package request
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 type RoundRobinBalancer struct {
@@ -94,7 +93,7 @@ func (r *RoundRobinBalancer) CheckAndRestoreUrls() {
 	}
 }
 
-func sendRequest(balancer *RoundRobinBalancer) {
+func SendRequest(balancer *RoundRobinBalancer) {
 	for {
 	next:
 		serverURL := balancer.GetNextURL()
@@ -130,37 +129,4 @@ func sendRequest(balancer *RoundRobinBalancer) {
 		resp.Body.Close()
 	}
 
-}
-
-func main() {
-	backends := []*url.URL{
-		{
-			Scheme: "http",
-			Host:   "localhost:81",
-		},
-		{
-			Scheme: "http",
-			Host:   "localhost:82",
-		},
-		{
-			Scheme: "http",
-			Host:   "localhost:83",
-		},
-	}
-
-	balancer := NewRoundRobinBalancer(backends)
-
-	// Periodically check and restore removed servers
-	go func() {
-		for {
-			time.Sleep(5 * time.Second)
-			balancer.CheckAndRestoreUrls()
-		}
-	}()
-
-	// Continuously send requests
-	for {
-		sendRequest(balancer)
-		time.Sleep(1 * time.Second) // Throttle requests
-	}
 }

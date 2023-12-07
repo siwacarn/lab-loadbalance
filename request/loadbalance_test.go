@@ -1,4 +1,4 @@
-package main
+package request
 
 import (
 	"fmt"
@@ -145,7 +145,7 @@ func TestSendRequest(t *testing.T) {
 	log.SetOutput(newMockWriter(&capturedLogs))
 
 	// Call sendRequest function
-	sendRequest(balancer)
+	SendRequest(balancer)
 
 	// Check if the log contains the expected response
 	expectedLogContent := "Response from server: mock response"
