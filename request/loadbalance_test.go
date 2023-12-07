@@ -1,7 +1,6 @@
 package request
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -28,24 +27,23 @@ func TestRoundRobinBalancer(t *testing.T) {
 		},
 	}
 
-	balancer := NewRoundRobinBalancer(backends)
+	t.Run("TestNewRoundRobinBalancer", func(t *testing.T) {
+		balancer := NewRoundRobinBalancer(backends)
 
-	// Execute & Verify
-	for i, expectedURL := range backends {
-		serverURL := balancer.GetNextURL()
+		// Execute & Verify
+		for i, expectedURL := range backends {
+			serverURL := balancer.GetNextURL()
 
-		fmt.Println("serverURL", serverURL)
-		fmt.Println("expectedURL", expectedURL)
+			if serverURL == nil {
+				t.Fatalf("Test failed at iteration %d: Received nil URL", i)
+			}
 
-		if serverURL == nil {
-			t.Fatalf("Test failed at iteration %d: Received nil URL", i)
+			if serverURL.String() != expectedURL.String() {
+				t.Errorf("Expected URL %s, got %s", expectedURL, serverURL)
+			}
+
 		}
-
-		if serverURL.String() != expectedURL.String() {
-			t.Errorf("Expected URL %s, got %s", expectedURL, serverURL)
-		}
-
-	}
+	})
 }
 
 func TestRemoveURL(t *testing.T) {
@@ -65,29 +63,58 @@ func TestRemoveURL(t *testing.T) {
 		},
 	}
 
-	balancer := NewRoundRobinBalancer(backends)
+	t.Run("TestRemoveURL", func(t *testing.T) {
+		balancer := NewRoundRobinBalancer(backends)
 
-	// URL to remove
-	removeUrlString := "http://localhost:82"
-	removeUrl, err := url.Parse(removeUrlString)
-	if err != nil {
-		t.Fatalf("Failed to parse URL %s: %v", removeUrlString, err)
-	}
-
-	// Execute
-	balancer.RemoveURL(removeUrl)
-
-	// Verify
-	for i := 0; i < len(backends)-1; i++ {
-		serverURL := balancer.GetNextURL()
-		if serverURL == nil {
-			t.Fatalf("Test failed at iteration %d: Received nil URL", i)
+		// URL to remove
+		removeUrlString := "http://localhost:82"
+		removeUrl, err := url.Parse(removeUrlString)
+		if err != nil {
+			t.Fatalf("Failed to parse URL %s: %v", removeUrlString, err)
 		}
 
-		if serverURL.String() == removeUrlString {
-			t.Errorf("URL %s was removed but still received in round robin", removeUrlString)
+		// Execute
+		balancer.RemoveURL(removeUrl)
+
+		// Verify
+		for i := 0; i < len(backends)-1; i++ {
+			serverURL := balancer.GetNextURL()
+			if serverURL == nil {
+				t.Fatalf("Test failed at iteration %d: Received nil URL", i)
+			}
+
+			if serverURL.String() == removeUrlString {
+				t.Errorf("URL %s was removed but still received in round robin", removeUrlString)
+			}
 		}
-	}
+	})
+
+	t.Run("TestRemoveURLInvalid", func(t *testing.T) {
+		balancer := NewRoundRobinBalancer(backends)
+
+		// URL to remove
+		removeUrlString := "http://localhost:84"
+		removeUrl, err := url.Parse(removeUrlString)
+		if err != nil {
+			t.Fatalf("Failed to parse URL %s: %v", removeUrlString, err)
+		}
+
+		// Execute
+		balancer.RemoveURL(removeUrl)
+
+		// Verify
+		for i := 0; i < len(backends); i++ {
+			serverURL := balancer.GetNextURL()
+			if serverURL == nil {
+				t.Fatalf("Test failed at iteration %d: Received nil URL", i)
+			}
+
+			if serverURL.String() == removeUrlString {
+				t.Errorf("URL %s was removed but still received in round robin", removeUrlString)
+			}
+		}
+	})
+
 }
 
 func TestCheckAndRestoreUrls(t *testing.T) {
@@ -103,25 +130,28 @@ func TestCheckAndRestoreUrls(t *testing.T) {
 		t.Fatalf("Failed to parse test server URL: %v", err)
 	}
 
-	// Setup
-	balancer := NewRoundRobinBalancer([]*url.URL{testServerURL})
+	t.Run("TestCheckAndRestoreUrls", func(t *testing.T) {
+		// Setup
+		balancer := NewRoundRobinBalancer([]*url.URL{testServerURL})
 
-	// Initially remove the URL
-	balancer.RemoveURL(testServerURL)
+		// Initially remove the URL
+		balancer.RemoveURL(testServerURL)
 
-	// Check that the URL is removed
-	if len(balancer.activeUrls) != 0 {
-		t.Errorf("URL was not removed as expected")
-	}
+		// Check that the URL is removed
+		if len(balancer.activeUrls) != 0 {
+			t.Errorf("URL was not removed as expected")
+		}
 
-	// Simulate the passage of time and server becoming available again
-	time.Sleep(1 * time.Second)
-	balancer.CheckAndRestoreUrls()
+		// Simulate the passage of time and server becoming available again
+		time.Sleep(1 * time.Second)
+		balancer.CheckAndRestoreUrls()
 
-	// Verify that the URL is restored
-	if len(balancer.activeUrls) == 0 {
-		t.Errorf("URL was not restored as expected")
-	}
+		// Verify that the URL is restored
+		if len(balancer.activeUrls) == 0 {
+			t.Errorf("URL was not restored as expected")
+		}
+	})
+
 }
 
 func TestSendRequest(t *testing.T) {
@@ -137,21 +167,42 @@ func TestSendRequest(t *testing.T) {
 		t.Fatalf("Failed to parse mock server URL: %v", err)
 	}
 
-	// Setup RoundRobinBalancer with the mock server URL
-	balancer := NewRoundRobinBalancer([]*url.URL{mockServerURL})
+	t.Run("TestSendRequest", func(t *testing.T) {
+		// Setup RoundRobinBalancer with the mock server URL
+		balancer := NewRoundRobinBalancer([]*url.URL{mockServerURL})
 
-	// Capture the logs to analyze the output
-	var capturedLogs string
-	log.SetOutput(newMockWriter(&capturedLogs))
+		// Capture the logs to analyze the output
+		var capturedLogs string
+		log.SetOutput(newMockWriter(&capturedLogs))
 
-	// Call sendRequest function
-	SendRequest(balancer)
+		// Call sendRequest function
+		SendRequest(balancer)
 
-	// Check if the log contains the expected response
-	expectedLogContent := "Response from server: mock response"
-	if !contains(capturedLogs, expectedLogContent) {
-		t.Errorf("Expected log to contain %q, got %q", expectedLogContent, capturedLogs)
-	}
+		// Check if the log contains the expected response
+		expectedLogContent := "Response from server: mock response"
+		if !contains(capturedLogs, expectedLogContent) {
+			t.Errorf("Expected log to contain %q, got %q", expectedLogContent, capturedLogs)
+		}
+	})
+
+	t.Run("TestSendRequestInvalidURL", func(t *testing.T) {
+
+		// Setup RoundRobinBalancer with the mock server URL
+		balancer := NewRoundRobinBalancer([]*url.URL{{}})
+
+		// Capture the logs to analyze the output
+		var capturedLogs string
+		log.SetOutput(newMockWriter(&capturedLogs))
+
+		// Call sendRequest function
+		SendRequest(balancer)
+
+		// Check if the log contains the expected response
+		expectedLogContent := "No active servers available"
+		if !contains(capturedLogs, expectedLogContent) {
+			t.Errorf("Expected log to contain %q, got %q", expectedLogContent, capturedLogs)
+		}
+	})
 }
 
 // newMockWriter creates an io.Writer that captures the written data in a string

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"loadbalance/request"
 	"net/url"
 	"time"
@@ -8,21 +9,22 @@ import (
 
 func main() {
 	backends := []*url.URL{
-		{
-			Scheme: "http",
-			Host:   "localhost:81",
-		},
-		{
-			Scheme: "http",
-			Host:   "localhost:82",
-		},
-		{
-			Scheme: "http",
-			Host:   "localhost:83",
-		},
+		// {
+		// 	Scheme: "http",
+		// 	Host:   "localhost:81",
+		// },
+		// {
+		// 	Scheme: "http",
+		// 	Host:   "localhost:82",
+		// },
+		// {
+		// 	Scheme: "http",
+		// 	Host:   "localhost:83",
+		// },
 	}
 
 	balancer := request.NewRoundRobinBalancer(backends)
+	fmt.Println(balancer)
 
 	// Periodically check and restore removed servers
 	go func() {
