@@ -45,8 +45,12 @@ func (r *RoundRobinBalancer) GetNextURL() *url.URL {
 		return nil
 	}
 
-	index := atomic.AddUint64(&r.currentIndex, 1)
-	return r.activeUrls[index%uint64(len(r.activeUrls))]
+	// Use the current index value before incrementing it
+	currentIndex := atomic.LoadUint64(&r.currentIndex)
+	url := r.activeUrls[currentIndex%uint64(len(r.activeUrls))]
+	atomic.AddUint64(&r.currentIndex, 1)
+
+	return url
 }
 
 func (r *RoundRobinBalancer) RemoveURL(urlToRemove *url.URL) {
