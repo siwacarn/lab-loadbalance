@@ -1,7 +1,8 @@
 package main
 
 import (
-	"io/ioutil"
+	"context"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -21,13 +22,13 @@ func NewRoundRobinBalancer(backendUrls []*url.URL) *RoundRobinBalancer {
 	activeUrls := make([]*url.URL, 0, len(backendUrls))
 	removedUrlsMap := make(map[*url.URL]struct{})
 
-	for _, backendUrl := range backendUrls {
-		parsedUrl, err := url.Parse(backendUrl.String())
+	for _, backendsURL := range backendUrls {
+		parsedURL, err := url.Parse(backendsURL.String())
 		if err != nil {
-			log.Printf("Invalid URL %s: %v", backendUrl, err)
+			log.Printf("Invalid URL %s: %v", backendsURL, err)
 			continue
 		}
-		activeUrls = append(activeUrls, parsedUrl)
+		activeUrls = append(activeUrls, parsedURL)
 	}
 
 	return &RoundRobinBalancer{
@@ -66,42 +67,65 @@ func (r *RoundRobinBalancer) CheckAndRestoreUrls() {
 	defer r.lock.Unlock()
 
 	for urlStr := range r.removedUrls {
-		_, err := http.Get(urlStr.String())
-		if err == nil {
-			parsedUrl, _ := url.Parse(urlStr.String())
-			r.activeUrls = append(r.activeUrls, parsedUrl)
+
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, urlStr.String(), nil)
+		if err != nil {
+			log.Printf("Error creating request: %v\n", err)
+			continue
+		}
+
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil && resp.StatusCode == 200 {
+			parsedURL, err := url.Parse(urlStr.String())
+			if err != nil {
+				log.Printf("Invalid URL %s: %v", urlStr, err)
+				continue
+			}
+
+			r.activeUrls = append(r.activeUrls, parsedURL)
 			delete(r.removedUrls, urlStr)
+
+			defer resp.Body.Close()
 		}
 	}
 }
 
 func sendRequest(balancer *RoundRobinBalancer) {
-	serverURL := balancer.GetNextURL()
-	if serverURL == nil {
-		log.Println("No active servers available")
-		return
+	for {
+	next:
+		serverURL := balancer.GetNextURL()
+		if serverURL == nil {
+			log.Println("No active servers available")
+			return
+		}
+
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, serverURL.String(), nil)
+		if err != nil {
+			log.Printf("Error creating request: %v\n", err)
+			return
+		}
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			// log.Printf("Error making request to %s: %v\n", serverURL, err)
+			balancer.RemoveURL(serverURL)
+			goto next
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == 200 {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				log.Printf("Error reading response: %v\n", err)
+				return
+			}
+			log.Printf("Response from server: %s\n", body)
+			break
+		}
+
+		resp.Body.Close()
 	}
 
-	resp, err := http.Get(serverURL.String())
-	if err != nil {
-		log.Printf("Error making request to %s: %v\n", serverURL, err)
-		balancer.RemoveURL(serverURL)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		log.Printf("Server %s responded with non-200 status: %d\n", serverURL, resp.StatusCode)
-		return
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("Error reading response from %s: %v\n", serverURL, err)
-		return
-	}
-
-	log.Printf("Response from server %s: %s\n", serverURL, body)
 }
 
 func main() {
